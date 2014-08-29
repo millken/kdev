@@ -10,6 +10,7 @@
 #include <linux/udp.h>
 #include <net/ip.h>
 
+#define KDDNS_PERIOD_MAX 1000
 #define DNS_HEADER_SIZE 12
 
 static struct nf_hook_ops nfho; //net filter hook option struct
@@ -22,7 +23,76 @@ struct dns_stats {
 static struct task_struct *counter_thread;
 struct kmem_cache *packet_node_cache;
 struct dns_stats *stats; 
+static int threshold = 1000;
+static int period = 1000;
 static bool forward;
+
+#ifdef CONFIG_SYSFS
+static ssize_t kddns_threshold_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", threshold);
+}
+
+static ssize_t kddns_period_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", period);
+}
+
+static ssize_t kddns_threshold_store(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     const char *buf, size_t count)
+{
+	int err;
+	unsigned long tmp;
+
+	err = kstrtoul(buf, 10, &tmp);
+	if (err || !tmp)
+		return -EINVAL;
+
+	threshold = tmp;
+
+	return count;
+}
+
+static ssize_t kddns_period_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	int err;
+	unsigned long tmp;
+
+	err = kstrtoul(buf, 10, &tmp);
+	if (err || !tmp || tmp > KDDNS_PERIOD_MAX)
+		return -EINVAL;
+
+	period = tmp;
+
+	return count;
+}
+
+
+static struct kobj_attribute kddns_threshold_attr =
+__ATTR(threshold, 0644, kddns_threshold_show,
+       kddns_threshold_store);
+
+static struct kobj_attribute kddns_period_attr =
+__ATTR(period, 0644, kddns_period_show,
+       kddns_period_store);
+
+static struct attribute *kddns_attrs[] = {
+	&kddns_threshold_attr.attr,
+	&kddns_period_attr.attr,
+	NULL,
+};
+
+static struct attribute_group kddns_attr_group = {
+	.attrs = kddns_attrs,
+	.name = "kddns",
+};
+
+#endif
 /*  
  *  DNS HEADER:
  *
@@ -169,11 +239,11 @@ static int counter_fn(void *data)
 {
 	int qps = 0;
 	for (;;) {
-		msleep(1000);
+		msleep(period);
 		if (kthread_should_stop())
 			break;
 		qps = atomic_read(&(stats->count));
-		forward = qps > 1000 ? true : false;
+		forward = qps > threshold ? true : false;
 		pr_info("qps=%d, forward=%d\n", qps, forward);
 		atomic_set(&(stats->count), 0);
 	}
@@ -182,7 +252,25 @@ static int counter_fn(void *data)
 
 static int __init kddns_init(void)
 {
+	int err;
 	printk(KERN_INFO "Starting kddns module\n");
+	if (period <= 0 || period > KDDNS_PERIOD_MAX) {
+		printk(KERN_INFO
+		       "kddns: period should be in range 1 ... %u, forcing default value 1000 \n",
+		       KDDNS_PERIOD_MAX);
+		period = 1000;
+	}
+	if (threshold <= 0) {
+		printk(KERN_INFO
+		       "kddns: threshold should be >0, forcing default value 1000 \n");
+		threshold = 1000;	
+	}
+	
+#ifdef CONFIG_SYSFS
+	if ((err = sysfs_create_group(kernel_kobj, &kddns_attr_group)))
+		goto out_err;
+#endif
+	
 	packet_node_cache = kmem_cache_create("kmem_packet_cache", sizeof(struct
 		dns_stats), 0, SLAB_HWCACHE_ALIGN, NULL);
 	pr_info("%pS\n", __builtin_return_address(1));	
@@ -195,18 +283,27 @@ static int __init kddns_init(void)
 	if (IS_ERR(counter_thread)) {
 		printk(KERN_ERR "kddns: creating thread failed, err: %li \n",
 		PTR_ERR(counter_thread));
-		return -ENOMEM;
+		goto out_err_free3;
 	}
 			
 	init_filter_if();
 	return 0; // Non-zero return means that the module couldn't be loaded.
+out_err_free3:
+#ifdef CONFIG_SYSFS
+	sysfs_remove_group(kernel_kobj, &kddns_attr_group);
+#endif
+out_err:
+	return -ENOMEM;
+		
 }
 
 static void __exit kddns_exit(void)
 {
 	kthread_stop(counter_thread);
 	nf_unregister_hook(&nfho);
-
+#ifdef CONFIG_SYSFS
+	sysfs_remove_group(kernel_kobj, &kddns_attr_group);
+#endif
 	kmem_cache_free(packet_node_cache, stats);
 	kmem_cache_destroy(packet_node_cache);
 	printk(KERN_INFO "Stoping kddns module\n");
@@ -215,6 +312,11 @@ static void __exit kddns_exit(void)
 module_init(kddns_init);
 module_exit(kddns_exit);
 
+module_param(threshold, int, 0);
+MODULE_PARM_DESC(threshold,
+		 "Number of reuests from one IP passed to dns per one period");
+module_param(period, int, 0);
+MODULE_PARM_DESC(period, "Time between counting collected stats, ms");
 
 MODULE_AUTHOR("Millken <millken@gmail.com>");
 MODULE_DESCRIPTION("anti-ddos DNS query");
