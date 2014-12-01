@@ -192,7 +192,9 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	struct udphdr *udp;
 	unsigned char *data;
 	unsigned int datalen;
-	int query;
+	char domain[128];
+	int i,j, query;
+	unsigned int p=0;
 	if (skb->protocol == htons(ETH_P_IP)) {
 		ip = (struct iphdr *)skb_network_header(skb);
 		if (ip->version == 4 && ip->protocol == IPPROTO_UDP) {
@@ -216,7 +218,23 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 							     ip->daddr, data);
 					return NF_DROP;				
 				}
-				//printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)));
+				//http://elinux.org/Debugging_by_printing
+				print_hex_dump_bytes("", DUMP_PREFIX_NONE, data, datalen);
+				memcpy(domain, data + 12, datalen - 14);
+				//http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/
+				for(i=0;i<(int)strlen((const char*)domain);i++) 
+					{
+						p=domain[i];
+						for(j=0;j<(int)p;j++) 
+						{
+							domain[i]=domain[i+1];
+							i=i+1;
+						}
+						domain[i]='.';
+					}
+					domain[i-1]='\0'; //remove the last dot
+				
+				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, domain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), domain);
 			}
 		}
 	}
