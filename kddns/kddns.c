@@ -2,6 +2,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 
+#include <linux/list.h>
 #include <linux/kthread.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
@@ -9,6 +10,10 @@
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <net/ip.h>
+
+/*
+ * http://www.roman10.net/how-to-filter-network-packets-using-netfilterpart-2-implement-the-hook-function/
+ */
 
 #define KDDNS_PERIOD_MAX 1000
 #define DNS_HEADER_SIZE 12
@@ -19,6 +24,14 @@ struct dns_stats {
 	atomic_t count;
 	atomic64_t data_used;
 };
+
+struct query_stats {
+	char topdomain[70]; //http://www.baike.com/wiki/%E5%9B%BD%E9%99%85%E5%9F%9F%E5%90%8D
+	atomic_t count;
+	struct list_head list;
+};
+
+static struct query_stats qs_list;
 
 static struct task_struct *counter_thread;
 struct kmem_cache *packet_node_cache;
@@ -192,9 +205,15 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	struct udphdr *udp;
 	unsigned char *data;
 	unsigned int datalen;
-	char domain[128];
+	char domain[70];
 	int i,j, query;
 	unsigned int p=0;
+	unsigned int is_find = 0;
+	
+   struct list_head *ch;
+
+   struct query_stats *qs, *newQS;	
+   
 	if (skb->protocol == htons(ETH_P_IP)) {
 		ip = (struct iphdr *)skb_network_header(skb);
 		if (ip->version == 4 && ip->protocol == IPPROTO_UDP) {
@@ -233,6 +252,27 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 						domain[i]='.';
 					}
 					domain[i-1]='\0'; //remove the last dot
+i = 0;
+is_find = 0;
+list_for_each(ch, &qs_list.list) {
+	i++;
+	qs = list_entry(ch, struct query_stats, list);
+	printk(KERN_INFO "domain %d: qs->topdomain = %s; qs->count = %d;\n", i, qs->topdomain, atomic_read(&(qs->count)) ); 
+	if(strcmp(domain, qs->topdomain) == 0) {
+		is_find = 1;
+	 	atomic_inc(&(qs->count));
+	}
+
+}
+if (is_find == 0) {
+		newQS = kmalloc(sizeof(*newQS), GFP_ATOMIC);
+		strcpy(newQS->topdomain, domain);
+		atomic_set(&(newQS->count), 1);
+    	INIT_LIST_HEAD(&(newQS->list));
+    	list_add_tail(&(newQS->list), &(qs_list.list));
+    	printk(KERN_INFO "Insert Domain : newQS->topdomain = %s; newQS->count = %d;\n", newQS->topdomain, atomic_read(&(newQS->count)) ); 		
+
+}
 				
 				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, domain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), domain);
 			}
@@ -288,7 +328,9 @@ static int __init kddns_init(void)
 	if ((err = sysfs_create_group(kernel_kobj, &kddns_attr_group)))
 		goto out_err;
 #endif
-	
+
+	INIT_LIST_HEAD(&(qs_list.list));
+		
 	packet_node_cache = kmem_cache_create("kmem_packet_cache", sizeof(struct
 		dns_stats), 0, SLAB_HWCACHE_ALIGN, NULL);
 	pr_info("%pS\n", __builtin_return_address(1));	
