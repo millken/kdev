@@ -1,0 +1,3 @@
+[submodule "kmemcached"]
+	path = kmemcached
+	url = https://github.com/achivetta/kmemcached.git

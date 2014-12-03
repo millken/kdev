@@ -1,0 +1,1 @@
+cmd_/home/github/kdev/kddns/kddns.ko.unsigned := ld -r -m elf_x86_64 -T /usr/src/kernels/2.6.32-504.1.3.el6.x86_64/scripts/module-common.lds --build-id -o /home/github/kdev/kddns/kddns.ko.unsigned /home/github/kdev/kddns/kddns.o /home/github/kdev/kddns/kddns.mod.o 

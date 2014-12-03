@@ -1,4 +1,4 @@
-obj-m += kddns.o
+obj-m += elts.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
@@ -6,7 +6,7 @@ clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
 install:
-	insmod kddns.ko
+	insmod elts.ko
 
 uninstall:
-	rmmod kddns.ko	
+	rmmod elts.ko	
