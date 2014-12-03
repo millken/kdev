@@ -13,6 +13,9 @@
 
 /*
  * http://www.roman10.net/how-to-filter-network-packets-using-netfilterpart-2-implement-the-hook-function/
+ * http://mxr.mozilla.org/mozilla/source/netwerk/dns/src/effective_tld_names.dat?raw=1 
+ * https://publicsuffix.org/list/effective_tld_names.dat
+ * http://mxr.mozilla.org/mozilla/source/netwerk/dns/src/nsEffectiveTLDService.cpp
  */
 
 #define KDDNS_PERIOD_MAX 1000
@@ -205,11 +208,11 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	struct udphdr *udp;
 	unsigned char *data;
 	unsigned int datalen;
-	char domain[70];
+	char currDomain[70];
 	int i,j, query;
 	unsigned int p=0;
 	unsigned int is_find = 0;
-	
+	  
    struct list_head *ch;
 
    struct query_stats *qs, *newQS;	
@@ -239,26 +242,42 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 				}
 				//http://elinux.org/Debugging_by_printing
 				print_hex_dump_bytes("", DUMP_PREFIX_NONE, data, datalen);
-				memcpy(domain, data + 12, datalen - 14);
+				memcpy(currDomain, data + 12, datalen - 14);
 				//http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/
-				for(i=0;i<(int)strlen((const char*)domain);i++) 
+				for(i=0;i<(int)strlen((const char*)currDomain);i++) 
 					{
-						p=domain[i];
+						p=currDomain[i];
 						for(j=0;j<(int)p;j++) 
 						{
-							domain[i]=domain[i+1];
+							currDomain[i]=currDomain[i+1];
 							i=i+1;
 						}
-						domain[i]='.';
+						currDomain[i]='.';
 					}
-					domain[i-1]='\0'; //remove the last dot
+					currDomain[i-1]='\0'; //remove the last dot
+					/*
+					const char *eTLD = currDomain;			
+					const char *nextDot = strchr(currDomain, '.');
+					
+					while(1) {
+					  while (token = strsep(&cur, delim)) {  
+						printf("%s\n", token);  
+					  }
+				   if (!nextDot) {
+					   // we've hit the top domain level; use it by default.
+					   eTLD = currDomain;
+					   break;
+					 }					  
+						currDomain = nextDot + 1;
+						nextDot = strchr(currDomain, '.');			  		
+					}*/
 i = 0;
 is_find = 0;
 list_for_each(ch, &qs_list.list) {
 	i++;
 	qs = list_entry(ch, struct query_stats, list);
-	printk(KERN_INFO "domain %d: qs->topdomain = %s; qs->count = %d;\n", i, qs->topdomain, atomic_read(&(qs->count)) ); 
-	if(strcmp(domain, qs->topdomain) == 0) {
+	printk(KERN_INFO "currDomain %d: qs->topdomain = %s; qs->count = %d;\n", i, qs->topdomain, atomic_read(&(qs->count)) ); 
+	if(strcmp(currDomain, qs->topdomain) == 0) {
 		is_find = 1;
 	 	atomic_inc(&(qs->count));
 	}
@@ -266,7 +285,7 @@ list_for_each(ch, &qs_list.list) {
 }
 if (is_find == 0) {
 		newQS = kmalloc(sizeof(*newQS), GFP_ATOMIC);
-		strcpy(newQS->topdomain, domain);
+		strcpy(newQS->topdomain, currDomain);
 		atomic_set(&(newQS->count), 1);
     	INIT_LIST_HEAD(&(newQS->list));
     	list_add_tail(&(newQS->list), &(qs_list.list));
@@ -274,7 +293,7 @@ if (is_find == 0) {
 
 }
 				
-				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, domain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), domain);
+				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, currDomain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), currDomain);
 			}
 		}
 	}
