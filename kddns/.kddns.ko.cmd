@@ -1,1 +1,1 @@
-cmd_/home/github/kdev/kddns/kddns.ko := cp /home/github/kdev/kddns/kddns.ko.unsigned /home/github/kdev/kddns/kddns.ko
+cmd_/home/clang/kdev/kddns/kddns.ko := cp /home/clang/kdev/kddns/kddns.ko.unsigned /home/clang/kdev/kddns/kddns.ko
