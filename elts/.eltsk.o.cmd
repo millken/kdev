@@ -1,0 +1,1 @@
+cmd_/home/clang/kdev/elts/eltsk.o := ld -m elf_x86_64   -r -o /home/clang/kdev/elts/eltsk.o /home/clang/kdev/elts/elts.o /home/clang/kdev/elts/hash.o ; scripts/mod/modpost /home/clang/kdev/elts/eltsk.o
