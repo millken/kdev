@@ -28,7 +28,11 @@ struct dns_stats {
 	atomic_t count;
 	atomic64_t data_used;
 };
-
+struct item_t /*哈希表项*/
+{
+        char key[70];
+        struct hlist_node list;
+};
 struct query_stats {
 	char topdomain[70]; //http://www.baike.com/wiki/%E5%9B%BD%E9%99%85%E5%9F%9F%E5%90%8D
 	atomic_t count;
@@ -209,18 +213,16 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	struct udphdr *udp;
 	unsigned char *data;
 	unsigned int datalen;
-	char currDomain[70];
+	char topDomain[70];
 	char *tmpDomain;
 	int i,j, query;
 	unsigned int p=0;
 	unsigned int is_find = 0;
 	  
    struct list_head *ch;
-	item_t* item;
-
-	char *prevDomain ;
-	char *eTLD;			
-	char *nextDot;
+	struct item_t *item;
+		
+	char *nextDot = NULL;
 const char*  delim = "."; 
 
    struct query_stats *qs, *newQS;
@@ -264,41 +266,35 @@ const char*  delim = ".";
 						tmpDomain[i]='.';
 					}
 					tmpDomain[i-1]='\0'; //remove the last dot
-					prevDomain = NULL;
-
-					eTLD = tmpDomain;			
-					
+					strcpy(topDomain, tmpDomain);
 
 					while(tmpDomain != NULL) {
 						
 						
-					  //item = get_item("a.com");
-					  /*
+					  item = get_item(tmpDomain);
+					  
 					  if(item != NULL) {
-					  	if (item->wild && prevDomain != NULL) {
-					  		eTLD = tmpDomain;
+					  		printk(KERN_INFO "hit item->=%s", item->key);
+
 					  		break;
-					  	}else{
-					  		eTLD = tmpDomain;
-					  		break;
-					  	}
+					  
 					  }
-					  */
-					   // we've hit the top domain level; use it by default.
-					   //eTLD = tmpDomain;
-					
-					 printk(KERN_INFO "in while prevDomain =  %s,tmpDomain=%s nextDot=%s", prevDomain, tmpDomain, nextDot);
-						nextDot = strsep(&tmpDomain, delim);		
+					  
+					strcpy(topDomain, tmpDomain);
+					printk(KERN_INFO "in while tmpDomain=%s nextDot=%s", tmpDomain, nextDot);
+
+					 nextDot = strsep(&tmpDomain, delim);
+
 					}
 					
-					printk(KERN_INFO "prevDomain =  %s,tmpDomain=%s", prevDomain, tmpDomain);
+					printk(KERN_INFO "topDomain =  %s", topDomain);
 i = 0;
 is_find = 0;
 list_for_each(ch, &qs_list.list) {
 	i++;
 	qs = list_entry(ch, struct query_stats, list);
 	printk(KERN_INFO "currDomain %d: qs->topdomain = %s; qs->count = %d;\n", i, qs->topdomain, atomic_read(&(qs->count)) ); 
-	if(strcmp(currDomain, qs->topdomain) == 0) {
+	if(strcmp(topDomain, qs->topdomain) == 0) {
 		is_find = 1;
 	 	atomic_inc(&(qs->count));
 	}
@@ -306,15 +302,14 @@ list_for_each(ch, &qs_list.list) {
 }
 if (is_find == 0) {
 		newQS = kmalloc(sizeof(*newQS), GFP_ATOMIC);
-		strcpy(newQS->topdomain, currDomain);
+		strcpy(newQS->topdomain, topDomain);
 		atomic_set(&(newQS->count), 1);
     	INIT_LIST_HEAD(&(newQS->list));
     	list_add_tail(&(newQS->list), &(qs_list.list));
     	printk(KERN_INFO "Insert Domain : newQS->topdomain = %s; newQS->count = %d;\n", newQS->topdomain, atomic_read(&(newQS->count)) ); 		
 
 }
-				
-				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, currDomain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), currDomain);
+				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, topDomain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), topDomain);
 			}
 		}
 	}
@@ -385,11 +380,7 @@ static int __init kddns_init(void)
 		PTR_ERR(counter_thread));
 		goto out_err_free3;
 	}
-    if (initialize_storage() == false){
-        printk(KERN_INFO "kddns: unable to initialize storage engine\n");
-        return -ENOMEM;
-        // FIXME leak in error condition
-    } 			
+    initialize_storage();
     load_tlds();
     //test1();
 

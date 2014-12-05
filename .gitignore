@@ -3,6 +3,10 @@
 *.ko
 *.obj
 *.elf
+*.mod.c
+*.ko.*
+modules.order
+Module.symvers
 
 # Libraries
 *.lib

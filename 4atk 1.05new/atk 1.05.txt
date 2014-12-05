@@ -1,0 +1,5 @@
+if ip = 255
+then  send random 1-254 packet
+
+
+测试注意  伪造ip 看看是不是 1-254 观察是否正常
