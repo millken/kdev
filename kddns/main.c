@@ -11,7 +11,12 @@
 #include <linux/udp.h>
 #include <net/ip.h>
 
+#include <net/sock.h>
+#include <linux/netlink.h>
+#include <linux/skbuff.h>
+
 #include "tld.h"
+#include "net.h"
 /*
  * http://www.roman10.net/how-to-filter-network-packets-using-netfilterpart-2-implement-the-hook-function/
  * http://mxr.mozilla.org/mozilla/source/netwerk/dns/src/effective_tld_names.dat?raw=1 
@@ -214,6 +219,7 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	unsigned char *data;
 	unsigned int datalen;
 	char topDomain[70];
+	char *tmDomain;
 	char *tmpDomain;
 	int i,j, query;
 	unsigned int p=0;
@@ -223,6 +229,7 @@ unsigned int kddns_packet_hook(unsigned int hooknum,
 	struct item_t *item;
 		
 	char *nextDot = NULL;
+	char *lastDot = NULL;
 const char*  delim = "."; 
 
    struct query_stats *qs, *newQS;
@@ -253,6 +260,8 @@ const char*  delim = ".";
 				//http://elinux.org/Debugging_by_printing
 				print_hex_dump_bytes("", DUMP_PREFIX_NONE, data, datalen);
 				tmpDomain = kmalloc(datalen - 14, GFP_KERNEL);
+				tmDomain = kmalloc(datalen - 14, GFP_KERNEL);
+				//lastDot = kmalloc(datalen - 14, GFP_KERNEL);
 				memcpy(tmpDomain, data + 12, datalen - 14);
 				//http://www.binarytides.com/dns-query-code-in-c-with-linux-sockets/
 				for(i=0;i<(int)strlen(tmpDomain);i++) 
@@ -280,11 +289,20 @@ const char*  delim = ".";
 					  
 					  }
 					  
-					strcpy(topDomain, tmpDomain);
+					strcpy(tmDomain, tmpDomain);
+					lastDot = nextDot;
+					//if(nextDot != NULL) strcpy(lastDot, nextDot);
 					printk(KERN_INFO "in while tmpDomain=%s nextDot=%s", tmpDomain, nextDot);
 
 					 nextDot = strsep(&tmpDomain, delim);
 
+					}
+					if (tmpDomain == NULL)
+					{
+						if(lastDot != NULL)
+						sprintf(topDomain, "%s.%s", lastDot, tmDomain );
+					}else{
+						strcpy(topDomain, tmDomain);
 					}
 					
 					printk(KERN_INFO "topDomain =  %s", topDomain);
@@ -310,6 +328,8 @@ if (is_find == 0) {
 
 }
 				printk(KERN_INFO "forward= %d, query = %d, ip->saddr=%pI4(%d), num=%d, topDomain=‘%s’\n", forward, query, &ip->saddr, ip->saddr, atomic_read(&(temp->count)), topDomain);
+				kfree(tmpDomain);
+				kfree(tmDomain);
 			}
 		}
 	}
@@ -382,6 +402,9 @@ static int __init kddns_init(void)
 	}
     initialize_storage();
     load_tlds();
+    if(net_init() == 0) {
+    	printk(KERN_DEBUG "Netlink Server Started\n");
+    }
     //test1();
 
 	init_filter_if();
@@ -405,6 +428,7 @@ static void __exit kddns_exit(void)
 	shutdown_storage();
 	kmem_cache_free(packet_node_cache, stats);
 	kmem_cache_destroy(packet_node_cache);
+	net_init();
 	printk(KERN_INFO "Stoping kddns module\n");
 }
 

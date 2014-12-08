@@ -33,13 +33,19 @@ __attribute__((section("__versions"))) = {
 	{ 0x343a1a8, "__list_add" },
 	{ 0xe2d5255a, "strcmp" },
 	{ 0x60ea2d6, "kstrtoull" },
+	{ 0x8ce3169d, "netlink_kernel_create" },
+	{ 0xde0bdcff, "memset" },
 	{ 0x45704798, "print_hex_dump_bytes" },
 	{ 0xea147363, "printk" },
 	{ 0xcf08c5b6, "kthread_stop" },
 	{ 0x2d0bad1c, "sysfs_create_group" },
+	{ 0xd4defbf4, "netlink_kernel_release" },
+	{ 0x7ec9bfbc, "strncpy" },
 	{ 0xb4390f9a, "mcount" },
 	{ 0x7329e40d, "kmem_cache_free" },
 	{ 0xcb333fdc, "ip_route_me_harder" },
+	{ 0x27418d14, "netlink_unicast" },
+	{ 0x1c740bd6, "init_net" },
 	{ 0xee065ced, "kmem_cache_alloc" },
 	{ 0x25421969, "__alloc_skb" },
 	{ 0xf0fdf6cb, "__stack_chk_fail" },
@@ -50,6 +56,7 @@ __attribute__((section("__versions"))) = {
 	{ 0xd2965f6f, "kthread_should_stop" },
 	{ 0x7e5a6ea3, "nf_unregister_hook" },
 	{ 0xcd04ab0b, "kernel_kobj" },
+	{ 0x37a0cba, "kfree" },
 	{ 0xc185e3ce, "kthread_create" },
 	{ 0x236c8c64, "memcpy" },
 	{ 0xe113bbbc, "csum_partial" },
@@ -63,7 +70,7 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "351FFB79495C05A390B6A64");
+MODULE_INFO(srcversion, "A4EF2D08F05663DDCF0D4F3");
 
 static const struct rheldata _rheldata __used
 __attribute__((section(".rheldata"))) = {

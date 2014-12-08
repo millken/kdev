@@ -1,6 +1,6 @@
 obj-m += kddns.o
 
-kddns-y := hash.o  tld.o  main.o
+kddns-y := hash.o  net.o tld.o  main.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
