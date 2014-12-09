@@ -23,7 +23,7 @@ func work() {
 
 func main() {
 	netConn := netlink.GetNetlinkSocket(NETLINK_CHANNEL, netlink.Unicast)
-	go work()
+	//go work()
 	netConn.SetHandleFunc(func(message []byte) error{
 		fmt.Println(string(message))
 		return nil

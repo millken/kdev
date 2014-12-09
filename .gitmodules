@@ -1,3 +1,6 @@
 [submodule "kmemcached"]
 	path = kmemcached
 	url = https://github.com/achivetta/kmemcached.git
+[submodule "netlink"]
+	path = netlink
+	url = https://github.com/vicvinc/netlink.git

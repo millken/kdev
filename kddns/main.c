@@ -15,8 +15,10 @@
 #include <linux/netlink.h>
 #include <linux/skbuff.h>
 
+#include "main.h"
 #include "tld.h"
 #include "net.h"
+
 /*
  * http://www.roman10.net/how-to-filter-network-packets-using-netfilterpart-2-implement-the-hook-function/
  * http://mxr.mozilla.org/mozilla/source/netwerk/dns/src/effective_tld_names.dat?raw=1 
@@ -24,27 +26,7 @@
  * http://mxr.mozilla.org/mozilla/source/netwerk/dns/src/nsEffectiveTLDService.cpp
  */
 
-#define KDDNS_PERIOD_MAX 1000
-#define DNS_HEADER_SIZE 12
-
 static struct nf_hook_ops nfho; //net filter hook option struct
-
-struct dns_stats {
-	atomic_t count;
-	atomic64_t data_used;
-};
-struct item_t /*哈希表项*/
-{
-        char key[70];
-        struct hlist_node list;
-};
-struct query_stats {
-	char topdomain[70]; //http://www.baike.com/wiki/%E5%9B%BD%E9%99%85%E5%9F%9F%E5%90%8D
-	atomic_t count;
-	struct list_head list;
-};
-
-static struct query_stats qs_list;
 
 static struct task_struct *counter_thread;
 struct kmem_cache *packet_node_cache;
@@ -119,6 +101,78 @@ static struct attribute_group kddns_attr_group = {
 };
 
 #endif
+
+
+static void net_server(struct sk_buff *skb)
+{
+	struct nl_msg *nlm;
+	struct nlmsghdr *nlh;
+	int pid;
+	struct sk_buff *skb_out;
+	int msg_size;
+	char cbmsg[1000] = "xxxxx";
+	//char msg[50] = " [0,0] this is a message from kernel.";
+	int res;
+	
+	struct list_head *ch, *cn;
+	struct query_stats *qs;
+
+	nlh = nlmsg_hdr(skb);
+
+	nlm = nlmsg_data(nlh);
+	printk(KERN_INFO "receive from user:%s, nlm->op=%d\n",(char *)nlmsg_data(nlh), nlm->op);
+
+	// printf("kernel received this message: %s\n", (char *)nlmsg_data(nlh));
+	// printf("and this has been written into /var/log/messages!\n");
+	// strcat(cbmsg, (char *)nlmsg_data(nlh));
+	// strcat(cbmsg, msg);
+	if(nlm->op == 49) {
+		printk(KERN_INFO "hit op\n");
+		list_for_each_safe(ch, cn, &(qs_list.list)) {
+			qs = list_entry(ch, struct query_stats, list);
+			printk(KERN_INFO " qs->topdomain = %s; qs->count = %d;\n", qs->topdomain, atomic_read(&(qs->count)) ); 
+
+		}	
+	}
+
+	msg_size = strlen(cbmsg);
+
+	pid = nlh->nlmsg_pid;
+
+	skb_out = nlmsg_new(msg_size,0);
+	if(!skb_out){
+		printk(KERN_WARNING "failed to allocate new skb\n");
+		return;
+	}
+
+	nlh = nlmsg_put(skb_out,0,0,NLMSG_DONE,msg_size,0);
+	NETLINK_CB(skb_out).dst_group = 0;
+	strncpy(nlmsg_data(nlh),cbmsg,msg_size);
+	res = nlmsg_unicast(netlink_socket,skb_out,pid);
+
+}
+
+int net_init(void)
+{
+	//struct netlink_kernel_cfg netlink_config = {
+	//	.input = net_server,
+	//};
+	//create Netlink Socket So We Can receive updates from Go Lang :D
+	netlink_socket = netlink_kernel_create(&init_net, NETLINK_CHANNEL, 0, net_server, NULL, THIS_MODULE);
+	if(!netlink_socket)
+	{
+		printk(KERN_INFO "Error creating Netlink Socket.\n");
+		return -1;
+	}
+	return 0;
+}
+
+int net_exit(void)
+{
+	netlink_kernel_release(netlink_socket);
+	return 0;
+}
+
 /*  
  *  DNS HEADER:
  *
@@ -357,7 +411,7 @@ static int counter_fn(void *data)
 			break;
 		qps = atomic_read(&(stats->count));
 		forward = qps > threshold ? true : false;
-		pr_info("qps=%d, forward=%d\n", qps, forward);
+		//pr_info("qps=%d, forward=%d\n", qps, forward);
 		atomic_set(&(stats->count), 0);
 	}
 	return 0;
@@ -400,12 +454,13 @@ static int __init kddns_init(void)
 		PTR_ERR(counter_thread));
 		goto out_err_free3;
 	}
+
     initialize_storage();
     load_tlds();
-    if(net_init() == 0) {
-    	printk(KERN_DEBUG "Netlink Server Started\n");
+    if(net_init() < 0) {
+    	printk(KERN_DEBUG "Netlink Server Not Started\n");
     }
-    //test1();
+
 
 	init_filter_if();
 	return 0; // Non-zero return means that the module couldn't be loaded.
@@ -428,7 +483,7 @@ static void __exit kddns_exit(void)
 	shutdown_storage();
 	kmem_cache_free(packet_node_cache, stats);
 	kmem_cache_destroy(packet_node_cache);
-	net_init();
+	net_exit();
 	printk(KERN_INFO "Stoping kddns module\n");
 }
 
