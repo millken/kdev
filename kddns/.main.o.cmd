@@ -808,8 +808,8 @@ deps_/home/clang/kdev/kddns/main.o := \
   include/net/inet_timewait_sock.h \
   include/net/tcp_states.h \
   include/net/timewait_sock.h \
+  /home/clang/kdev/kddns/main.h \
   /home/clang/kdev/kddns/tld.h \
-  /home/clang/kdev/kddns/net.h \
 
 /home/clang/kdev/kddns/main.o: $(deps_/home/clang/kdev/kddns/main.o)
 

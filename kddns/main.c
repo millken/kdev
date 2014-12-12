@@ -17,7 +17,7 @@
 
 #include "main.h"
 #include "tld.h"
-#include "net.h"
+
 
 /*
  * http://www.roman10.net/how-to-filter-network-packets-using-netfilterpart-2-implement-the-hook-function/
@@ -110,7 +110,8 @@ static void net_server(struct sk_buff *skb)
 	int pid;
 	struct sk_buff *skb_out;
 	int msg_size;
-	char cbmsg[1000] = "xxxxx";
+	char cbmsg[1800] = "";
+	char fmsg[100] = "";
 	//char msg[50] = " [0,0] this is a message from kernel.";
 	int res;
 	
@@ -130,9 +131,15 @@ static void net_server(struct sk_buff *skb)
 		printk(KERN_INFO "hit op\n");
 		list_for_each_safe(ch, cn, &(qs_list.list)) {
 			qs = list_entry(ch, struct query_stats, list);
+			sprintf(fmsg, "%s,%d\n", qs->topdomain, atomic_read(&(qs->count)));
+			strcat(cbmsg, fmsg);
 			printk(KERN_INFO " qs->topdomain = %s; qs->count = %d;\n", qs->topdomain, atomic_read(&(qs->count)) ); 
 
 		}	
+	}
+	if (nlm->op == 50)
+	{
+		/* code */
 	}
 
 	msg_size = strlen(cbmsg);
@@ -154,10 +161,6 @@ static void net_server(struct sk_buff *skb)
 
 int net_init(void)
 {
-	//struct netlink_kernel_cfg netlink_config = {
-	//	.input = net_server,
-	//};
-	//create Netlink Socket So We Can receive updates from Go Lang :D
 	netlink_socket = netlink_kernel_create(&init_net, NETLINK_CHANNEL, 0, net_server, NULL, THIS_MODULE);
 	if(!netlink_socket)
 	{
@@ -366,7 +369,7 @@ list_for_each(ch, &qs_list.list) {
 	i++;
 	qs = list_entry(ch, struct query_stats, list);
 	printk(KERN_INFO "currDomain %d: qs->topdomain = %s; qs->count = %d;\n", i, qs->topdomain, atomic_read(&(qs->count)) ); 
-	if(strcmp(topDomain, qs->topdomain) == 0) {
+	if(strcasecmp(topDomain, qs->topdomain) == 0) {
 		is_find = 1;
 	 	atomic_inc(&(qs->count));
 	}

@@ -1,1 +1,1 @@
-cmd_/home/clang/kdev/kddns/kddns.o := ld -m elf_x86_64   -r -o /home/clang/kdev/kddns/kddns.o /home/clang/kdev/kddns/hash.o /home/clang/kdev/kddns/net.o /home/clang/kdev/kddns/tld.o /home/clang/kdev/kddns/main.o ; scripts/mod/modpost /home/clang/kdev/kddns/kddns.o
+cmd_/home/clang/kdev/kddns/kddns.o := ld -m elf_x86_64   -r -o /home/clang/kdev/kddns/kddns.o /home/clang/kdev/kddns/hash.o /home/clang/kdev/kddns/tld.o /home/clang/kdev/kddns/main.o ; scripts/mod/modpost /home/clang/kdev/kddns/kddns.o
